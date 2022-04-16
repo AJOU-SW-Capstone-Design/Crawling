@@ -130,4 +130,10 @@ dmypy.json
 
 # chromedriver
 chromedriver.exe
+
+# DB information
 DB_info.py
+
+# For test
+test.py
+temp.txt
