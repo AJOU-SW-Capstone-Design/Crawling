@@ -6,12 +6,9 @@ from selenium.common.exceptions import NoSuchElementException
 
 import database as db
 
-# 추후 크롤링을 위한 data 저장
-rest_crawled_infos = []
-
-# 도로명 주소 data > address list에 저장
+# 지번 주소 data > address list에 저장
 address = []
-f = open('seoul_address.csv', 'r', encoding='UTF8')
+f = open('./address_csv/gyeonggi_suwon_address.csv', 'r', encoding='UTF8')
 rd = csv.reader(f)
 
 for line in rd:
@@ -33,6 +30,13 @@ time.sleep(2)
 
 # 음식 카테고리 리스트
 category_lst = ['치킨', '피자양식', '중식', '한식', '일식돈까스', '족발보쌈', '야식', '분식', '카페디저트', '편의점']
+
+# 0421 update - DB에 존재하는 식당명, 이미 크롤링된 식당명 리스트 저장
+restaurants = []
+select_sql = "SELECT r_name FROM restaurant"
+result = db.execute("select", select_sql)
+for r in result:
+    restaurants.append(r[0])
 
 for a in address:
     element.clear()
@@ -79,9 +83,23 @@ for a in address:
 
         # time.sleep(5)
 
-        # 식당 클릭
-        index = 1
+        # 식당 선택
+        count = 1 #delete
+        index = 0
         while True:
+            index += 1
+            # 0421 update - 식당명 이미 DB에 있거나 중복인 경우, 식당명에 지점이 포함되지 않은 경우 제외
+            try:
+                r_name_xpath = '//*[@id="content"]/div/div[4]/div/div[2]/div[' + str(index) + ']/div/table/tbody/tr/td[2]/div/div[1]'
+                r_name = driver.find_element_by_xpath(r_name_xpath).text
+                # 식당명이 이미 DB에 있거나, 이미 크롤링된 식당인 경우
+                if r_name in restaurants:
+                    continue
+                # 식당명에 지점이 포함되지 않은 경우
+                if r_name[-1] != '점' and r_name.find('-') == -1:
+                    continue
+            except NoSuchElementException:
+                break
             try:
                 rest_xpath = '//*[@id="content"]/div/div[4]/div/div[2]/div[' + str(index) + ']/div'
                 driver.find_element_by_xpath(rest_xpath).click()
@@ -92,38 +110,51 @@ for a in address:
                 soup = BeautifulSoup(html, 'html.parser')
 
                 # 식당 상세정보 크롤링 (r_name, min_price, order_fee)
-                
-                raw_discount_info = soup.select_one('#content > div.restaurant-detail.row.ng-scope > div.col-sm-8 > div.restaurant-info > div.restaurant-content > ul > li.discount-desc > span')
                 raw_r_name = soup.select_one('#content > div.restaurant-detail.row.ng-scope > div.col-sm-8 > div.restaurant-info > div.restaurant-title > span')
                 raw_min_price = soup.select_one('#content > div.restaurant-detail.row.ng-scope > div.col-sm-8 > div.restaurant-info > div.restaurant-content > ul > li:nth-child(3) > span')
                 raw_order_fee = soup.select_one('#content > div.restaurant-detail.row.ng-scope > div.col-sm-4.hidden-xs.restaurant-cart > ng-include > div > div.cart > div:nth-child(5) > span.list-group-item.clearfix.text-right.ng-binding')
                 
-                discount_info = raw_discount_info.get_text()
                 r_name = raw_r_name.get_text()
                 min_price = raw_min_price.get_text().replace(',', '').replace('원', '')
-                order_fee = raw_order_fee.get_text().split('배달요금 ')[1].split('원')[0].replace(',', '')
+                order_fee_origin = raw_order_fee.get_text().split('배달요금 ')[1].split('원')[0].replace(',', '')
+                # 0421 update - order_fee _ 주문금액에 따른 배달비 정보 확인
+                order_fee_discount = raw_order_fee.get_text().split('(')[1].split('원')[0].replace(',', '')
+                if order_fee_discount == '0':
+                    order_fee = '(0,' + order_fee_origin + ')'
+                else:
+                    order_fee = '(0,' + order_fee_origin + '),(' + order_fee_discount + ',0)'
         
                 rest_crawled_info = {
                     "r_name": r_name, 
                     "category": category, 
                     "min_price": min_price, 
-                    "order_fee": '(0,' + order_fee + ')',
-                    "r_location": a
+                    "order_fee": order_fee
                 }
-                rest_crawled_infos.append(rest_crawled_info)
+                restaurants.append(r_name) # 0421 update - 이미 크롤링된 식당명 저장 ... for 중복체크
+                print(str(index) + ' - ' + category + ' - ' + a)
+                sql = 'INSERT INTO restaurant (r_name, category, min_price, order_fee) VALUES ("'
+                sql = sql + rest_crawled_info["r_name"] + '", "' + rest_crawled_info["category"] + '", ' + rest_crawled_info["min_price"] + ', "' + rest_crawled_info["order_fee"] + '")'
+                print(sql)
+                try:
+                    db.execute('insert', sql)
+                except:
+                    print("Except! - " + sql)
+                    pass
+                count += 1
                 driver.back()
                 time.sleep(5)
-            except NoSuchElementException:
+            except:
                 break
-            if index == 2:
+            # delete
+            if count == 5:
                 break
-            index += 1
 
 driver.close() # 크롬드라이버 종료
 
-# rest_crawled_infos 리스트에 담긴 rest 정보 db에 저장
-# INSERT INTO post (title, order_time, post_time, shooting_user, p_location, u_id, r_id) VALUES (
-for info in rest_crawled_infos:
-    sql = 'INSERT INTO restaurant (r_name, category, min_price, order_fee, r_location) VALUES ("'
-    sql = sql + info["r_name"] + '", "' + info["category"] + '", ' + info["min_price"] + ', "' + info["order_fee"] + '", "' + info["r_location"] + '")'
-db.execute('insert', sql)
+'''
+Todo
+1) try 정리
+2) 할인 정보가 두 개 이상인 경우?
+3) 주소 검색 안 될 경우
+4) count 조건문 없애기
+'''

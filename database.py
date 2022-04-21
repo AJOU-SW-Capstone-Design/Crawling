@@ -12,6 +12,9 @@ def execute(execution, sql):
     conn = connect()
     cur = conn.cursor()
     cur.execute(sql)
-    if execution != 'select':
-        conn.commit()
+    if execution == 'select':
+        result = cur.fetchall()
+        disconnect(conn)
+        return result
+    conn.commit()
     disconnect(conn)
