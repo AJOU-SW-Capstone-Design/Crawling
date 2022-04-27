@@ -29,7 +29,8 @@ element = driver.find_element_by_xpath(xpath)
 time.sleep(2)
 
 # 음식 카테고리 리스트
-category_lst = ['치킨', '피자양식', '중식', '한식', '일식돈까스', '족발보쌈', '야식', '분식', '카페디저트', '편의점']
+raw_category_lst = ['치킨', '피자양식', '중식', '한식', '일식돈까스', '족발보쌈', '야식', '분식', '카페디저트', '편의점']
+category_lst = ['치킨', '피자/양식', '중식', '한식', '일식/돈까스', '족발/보쌈', '야식', '분식', '카페/디저트', '편의점']
 
 # 0421 update - DB에 존재하는 식당명, 이미 크롤링된 식당명 리스트 저장
 restaurants = []
@@ -61,7 +62,7 @@ for a in address:
 
     # 카테고리 별 조회
     cur_url = driver.current_url
-    for category in category_lst:
+    for category in raw_category_lst:
         category_url = ''
         category_url = cur_url + category + '/'
         driver.get(category_url)
@@ -126,15 +127,14 @@ for a in address:
         
                 rest_crawled_info = {
                     "r_name": r_name, 
-                    "category": category, 
+                    "category": category_lst[raw_category_lst.index(category)], 
                     "min_price": min_price, 
                     "order_fee": order_fee
                 }
                 restaurants.append(r_name) # 0421 update - 이미 크롤링된 식당명 저장 ... for 중복체크
-                print(str(index) + ' - ' + category + ' - ' + a)
                 sql = 'INSERT INTO restaurant (r_name, category, min_price, order_fee) VALUES ("'
                 sql = sql + rest_crawled_info["r_name"] + '", "' + rest_crawled_info["category"] + '", ' + rest_crawled_info["min_price"] + ', "' + rest_crawled_info["order_fee"] + '")'
-                print(sql)
+                
                 try:
                     db.execute('insert', sql)
                 except:
@@ -146,7 +146,7 @@ for a in address:
             except:
                 break
             # delete
-            if count == 5:
+            if count == 2:
                 break
 
 driver.close() # 크롬드라이버 종료

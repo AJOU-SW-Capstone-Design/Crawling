@@ -2,7 +2,7 @@ import pymysql
 import DB_info
 
 def connect():
-    conn = pymysql.connect(host=DB_info.host, user=DB_info.user, password=DB_info.password, db=DB_info.db, charset='utf8')
+    conn = pymysql.connect(host=DB_info.host, port=DB_info.port, user=DB_info.user, password=DB_info.password, db=DB_info.db, charset='utf8')
     return conn
 
 def disconnect(conn):
