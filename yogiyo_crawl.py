@@ -30,7 +30,6 @@ time.sleep(2)
 
 # 음식 카테고리 리스트
 raw_category_lst = ['치킨', '피자양식', '중식', '한식', '일식돈까스', '족발보쌈', '야식', '분식', '카페디저트', '편의점']
-category_lst = ['치킨', '피자/양식', '중식', '한식', '일식/돈까스', '족발/보쌈', '야식', '분식', '카페/디저트', '편의점']
 
 # 0421 update - DB에 존재하는 식당명, 이미 크롤링된 식당명 리스트 저장
 restaurants = []
@@ -106,6 +105,7 @@ for a in address:
                 driver.find_element_by_xpath(rest_xpath).click()
                 time.sleep(5)
 
+                order_url = driver.current_url
                 # 페이지 소스 출력
                 html = driver.page_source
                 soup = BeautifulSoup(html, 'html.parser')
@@ -123,17 +123,18 @@ for a in address:
                 if order_fee_discount == '0':
                     order_fee = '(0,' + order_fee_origin + ')'
                 else:
-                    order_fee = '(0,' + order_fee_origin + '),(' + order_fee_discount + ',0)'
+                    order_fee = '(0,' + order_fee_origin + ').(' + order_fee_discount + ',0)'
         
                 rest_crawled_info = {
                     "r_name": r_name, 
-                    "category": category_lst[raw_category_lst.index(category)], 
+                    "category": category, 
                     "min_price": min_price, 
-                    "order_fee": order_fee
+                    "order_fee": order_fee,
+                    "order_url": order_url
                 }
                 restaurants.append(r_name) # 0421 update - 이미 크롤링된 식당명 저장 ... for 중복체크
-                sql = 'INSERT INTO restaurant (r_name, category, min_price, order_fee) VALUES ("'
-                sql = sql + rest_crawled_info["r_name"] + '", "' + rest_crawled_info["category"] + '", ' + rest_crawled_info["min_price"] + ', "' + rest_crawled_info["order_fee"] + '")'
+                sql = 'INSERT INTO restaurant (r_name, category, min_price, order_fee, order_url) VALUES ("'
+                sql = sql + rest_crawled_info["r_name"] + '", "' + category + '", ' + rest_crawled_info["min_price"] + ', "' + rest_crawled_info["order_fee"] + '", "' + rest_crawled_info["order_url"] + '")'
                 
                 try:
                     db.execute('insert', sql)
@@ -146,7 +147,7 @@ for a in address:
             except:
                 break
             # delete
-            if count == 2:
+            if count == 5:
                 break
 
 driver.close() # 크롬드라이버 종료
@@ -157,4 +158,5 @@ Todo
 2) 할인 정보가 두 개 이상인 경우?
 3) 주소 검색 안 될 경우
 4) count 조건문 없애기
+5) 이미 있는 식당 정보 업데이트
 '''
